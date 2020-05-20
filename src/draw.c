@@ -247,7 +247,7 @@ static PangoLayout *layout_create(cairo_t *c)
         const struct screen_info *screen = output->get_active_screen();
 
         PangoContext *context = pango_cairo_create_context(c);
-        pango_cairo_context_set_resolution(context, screen_dpi_get(screen));
+        pango_cairo_context_set_resolution(context, screen->dpi);
 
         PangoLayout *layout = pango_layout_new(context);
 
@@ -642,7 +642,7 @@ void draw(void)
 {
         assert(queues_length_displayed() > 0);
 
-        GSList *layouts = create_layouts(x_win_get_context(win));
+        GSList *layouts = create_layouts(output->win_get_context(win));
 
         struct dimensions dim = calculate_dimensions(layouts);
 

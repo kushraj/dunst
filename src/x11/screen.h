@@ -12,7 +12,6 @@ void screen_dpi_xft_cache_purge(void);
 bool screen_check_event(XEvent *ev);
 
 const struct screen_info *get_active_screen(void);
-double screen_dpi_get(const struct screen_info *scr);
 
 /**
  * Find the currently focused window and check if it's in

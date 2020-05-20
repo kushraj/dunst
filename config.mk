@@ -41,7 +41,8 @@ pkg_config_packs := gio-2.0 \
                     xinerama \
                     xext \
                     "xrandr >= 1.5" \
-                    xscrnsaver
+                    xscrnsaver \
+                    wayland-client
 
 # dunstify also needs libnotify
 pkg_config_packs += libnotify

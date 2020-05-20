@@ -156,6 +156,7 @@ void randr_update(void)
                 screens[i].w = m[i].width;
                 screens[i].h = m[i].height;
                 screens[i].mmh = m[i].mheight;
+                screens[i].dpi = screen_dpi_get(&screens[i]);
         }
 
         XRRFreeMonitors(m);

@@ -23,6 +23,7 @@ struct screen_info {
         unsigned int h;
         unsigned int mmh;
         unsigned int w;
+        int dpi;
 };
 
 struct output {
