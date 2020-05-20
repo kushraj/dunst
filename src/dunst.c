@@ -20,6 +20,7 @@
 #include "queues.h"
 #include "settings.h"
 #include "utils.h"
+#include "output.h"
 
 GMainLoop *mainloop = NULL;
 
@@ -75,9 +76,9 @@ static gboolean run(void *data)
         if (active) {
                 // Call draw before showing the window to avoid flickering
                 draw();
-                x_win_show(win);
+                output->win_show(win);
         } else {
-                x_win_hide(win);
+                output->win_hide(win);
         }
 
         if (active) {

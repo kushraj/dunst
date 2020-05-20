@@ -2,6 +2,7 @@
 
 #include "x11/x.h"
 #include "x11/screen.h"
+#include "wayland/wl.h"
 
 const struct output output_x11 = {
         x_setup,
@@ -23,8 +24,28 @@ const struct output output_x11 = {
         have_fullscreen_window
 };
 
+const struct output output_wl = {
+        wl_init,
+        wl_deinit,
+
+        wl_win_create,
+        wl_win_destroy,
+
+        wl_win_show,
+        wl_win_hide,
+
+        wl_display_surface,
+        wl_win_visible,
+        wl_win_get_context,
+
+        wl_get_active_screen,
+
+        wl_is_idle,
+        wl_have_fullscreen_window
+};
+
 const struct output* output_create(void)
 {
-        return &output_x11;
+        return &output_wl;
 }
 /* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
