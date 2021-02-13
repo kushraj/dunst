@@ -80,15 +80,17 @@ function markup {
     killall dunst
     ../../dunst -config dunstrc.markup "200x0+10+10" &
     ../../dunstify -a "dunst tester"  "Markup Tests" -u "c"
-    ../../dunstify -a "dunst tester"  "<b>bold</b> <i>italic</i>"
-    ../../dunstify -a "dunst tester"  "<b>broken markup</i>"
+    ../../dunstify -a "dunst tester"  "There should be no markup in the title" -u "c"
+    ../../dunstify -a "dunst tester"  "Title" "<b>bold</b> <i>italic</i>"
+    ../../dunstify -a "dunst tester"  "Title" "<a href="github.com"> Github link </a>"
+    ../../dunstify -a "dunst tester"  "Title" "<b>broken markup</i>"
     keypress
 
     killall dunst
     ../../dunst -config dunstrc.nomarkup "200x0+10+10" &
-    ../../dunstify -a "dunst tester" -u c "NO Markup Tests"
-    ../../dunstify -a "dunst tester" "<b>bold</b><i>italic</i>"
-    ../../dunstify -a "dunst tester" "<b>broken markup</i>"
+    ../../dunstify -a "dunst tester" -u c "No markup Tests"
+    ../../dunstify -a "dunst tester" "<b>Title</b>" "<b>bold</b><i>italic</i>"
+    ../../dunstify -a "dunst tester" "<b>Title</b>" "<b>broken markup</i>"
     keypress
 
 }
@@ -160,13 +162,13 @@ function geometry {
 
     killall dunst
     ../../dunst -config dunstrc.default -geom "-300x1" &
-    ../../dunstify -a "dunst tester" -u c "-300x1"
+    ../../dunstify -a "dunst tester" -u c -- "-300x1"
     basic_notifications
     keypress
 
     killall dunst
     ../../dunst -config dunstrc.default -geom "-300x1-20-20" &
-    ../../dunstify -a "dunst tester" -u c "-300x1-20-20"
+    ../../dunstify -a "dunst tester" -u c -- "-300x1-20-20"
     basic_notifications
     keypress
 
@@ -177,12 +179,35 @@ function geometry {
     keypress
 }
 
+function progress_bar {
+    killall dunst
+    ../../dunst -config dunstrc.default &
+    ../../dunstify -h int:value:0 -a "dunst tester" -u c "Progress bar 0%: "
+    ../../dunstify -h int:value:33 -a "dunst tester" -u c "Progress bar 33%: "
+    ../../dunstify -h int:value:66 -a "dunst tester" -u c "Progress bar 66%: "
+    ../../dunstify -h int:value:100 -a "dunst tester" -u c "Progress bar 100%: "
+    keypress
+    killall dunst
+    ../../dunst -config dunstrc.default &
+    ../../dunstify -h int:value:33 -a "dunst tester" -u l "Low priority: "
+    ../../dunstify -h int:value:33 -a "dunst tester" -u n "Normal priority: "
+    ../../dunstify -h int:value:33 -a "dunst tester" -u c "Critical priority: "
+    keypress
+    killall dunst
+    ../../dunst -config dunstrc.progress_bar &
+    ../../dunstify -h int:value:33 -a "dunst tester" -u n "The progress bar should not be the entire width"
+    ../../dunstify -h int:value:33 -a "dunst tester" -u n "You might also notice height and frame size are changed"
+    ../../dunstify -h int:value:33 -a "dunst tester" -u c "Short"
+    keypress
+}
+
 if [ -n "$1" ]; then
     while [ -n "$1" ]; do
         $1
         shift
     done
 else
+    progress_bar
     geometry
     corners
     show_age

@@ -336,6 +336,7 @@ TEST test_basic_notification(void)
 TEST test_dbus_notify_colors(void)
 {
         const char *color_frame = "I allow all string values for frame!";
+        const char *color_outer_frame = "I allow all string values for outer frame!";
         const char *color_bg = "I allow all string values for background!";
         const char *color_fg = "I allow all string values for foreground!";
         struct notification *n;
@@ -352,6 +353,9 @@ TEST test_dbus_notify_colors(void)
                             g_strdup("frcolor"),
                             g_variant_ref_sink(g_variant_new_string(color_frame)));
         g_hash_table_insert(n_dbus->hints,
+                            g_strdup("ofrcolor"),
+                            g_variant_ref_sink(g_variant_new_string(color_outer_frame)));
+        g_hash_table_insert(n_dbus->hints,
                             g_strdup("bgcolor"),
                             g_variant_ref_sink(g_variant_new_string(color_bg)));
         g_hash_table_insert(n_dbus->hints,
@@ -367,6 +371,7 @@ TEST test_dbus_notify_colors(void)
         n = queues_debug_find_notification_by_id(id);
 
         ASSERT_STR_EQ(n->colors.frame, color_frame);
+        ASSERT_STR_EQ(n->colors.frame, color_outer_frame);
         ASSERT_STR_EQ(n->colors.fg, color_fg);
         ASSERT_STR_EQ(n->colors.bg, color_bg);
 

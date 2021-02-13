@@ -38,9 +38,17 @@ void rule_apply(struct rule *r, struct notification *n)
                 g_free(n->colors.bg);
                 n->colors.bg = g_strdup(r->bg);
         }
+        if (r->highlight) {
+                g_free(n->colors.highlight);
+                n->colors.highlight = g_strdup(r->highlight);
+        }
         if (r->fc) {
                 g_free(n->colors.frame);
                 n->colors.frame = g_strdup(r->fc);
+        }
+        if (r->ofc) {
+                g_free(n->colors.outer_frame);
+                n->colors.outer_frame = g_strdup(r->ofc);
         }
         if (r->format)
                 n->format = r->format;
@@ -106,4 +114,4 @@ bool rule_matches_notification(struct rule *r, struct notification *n)
                 && rule_field_matches_string(n->category,       r->category)
                 && rule_field_matches_string(n->stack_tag,      r->stack_tag);
 }
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

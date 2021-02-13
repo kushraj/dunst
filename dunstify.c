@@ -127,6 +127,11 @@ void parse_commandline(int argc, char *argv[])
         die(0);
     }
 
+    if (*appname == '\0') {
+        g_printerr("Provided appname was empty\n");
+        die(1);
+    }
+
     int n_args = count_args(argv, argc);
     if (n_args < 2 && close_id < 1) {
         g_printerr("I need at least a summary\n");
@@ -234,7 +239,7 @@ void add_action(NotifyNotification *n, char *str)
     char *label = strchr(str, ',');
 
     if (!label || *(label+1) == '\0') {
-        g_printerr("Malformed action. Excpected \"action,label\", got \"%s\"", str);
+        g_printerr("Malformed action. Expected \"action,label\", got \"%s\"", str);
         return;
     }
 
@@ -359,4 +364,4 @@ int main(int argc, char *argv[])
     die(0);
 }
 
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

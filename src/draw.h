@@ -1,12 +1,12 @@
 #ifndef DUNST_DRAW_H
 #define DUNST_DRAW_H
 
-#include "x11/x.h"
-#define TITLE_H 25
-#define IDENTITY_ICON_SIZE 16
-#define TITLE_FONT_SIZE 11
+#include <stdbool.h>
+#include <cairo.h>
+#include "output.h"
 
-extern struct window_x11 *win; // Temporary
+extern window win; // Temporary
+extern const struct output *output;
 
 void draw_setup(void);
 
@@ -17,4 +17,4 @@ void draw_rounded_rect(cairo_t *c, int x, int y, int width, int height, int corn
 void draw_deinit(void);
 
 #endif
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

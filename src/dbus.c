@@ -85,6 +85,10 @@ static const char *introspection_xml =
     "            <annotation name=\"org.freedesktop.DBus.Property.EmitsChangedSignal\" value=\"true\"/>"
     "        </property>"
 
+    "        <property name=\"displayedLength\" type=\"u\" access=\"read\" />"
+    "        <property name=\"historyLength\" type=\"u\" access=\"read\" />"
+    "        <property name=\"waitingLength\" type=\"u\" access=\"read\" />"
+
     "    </interface>"
     "</node>";
 
@@ -381,6 +385,11 @@ static struct notification *dbus_message_to_notification(const gchar *sender, GV
                 g_variant_unref(dict_value);
         }
 
+        if ((dict_value = g_variant_lookup_value(hints, "ofrcolor", G_VARIANT_TYPE_STRING))) {
+                n->colors.outer_frame = g_variant_dup_string(dict_value, NULL);
+                g_variant_unref(dict_value);
+        }
+
         if ((dict_value = g_variant_lookup_value(hints, "category", G_VARIANT_TYPE_STRING))) {
                 n->category = g_variant_dup_string(dict_value, NULL);
                 g_variant_unref(dict_value);
@@ -556,6 +565,27 @@ void signal_notification_closed(struct notification *n, enum reason reason)
         if (err) {
                 LOG_W("Unable to close notification: %s", err->message);
                 g_error_free(err);
+        } else {
+                char* reason_string;
+                switch (reason) {
+                        case REASON_TIME:
+                                reason_string="time";
+                                break;
+                        case REASON_USER:
+                                reason_string="user";
+                                break;
+                        case REASON_SIG:
+                                reason_string="signal";
+                                break;
+                        case REASON_UNDEF:
+                                reason_string="undfined";
+                                break;
+                        default:
+                                reason_string="unknown";
+                }
+
+                LOG_D("Queues: Closing notification for reason: %s", reason_string);
+
         }
 
 }
@@ -597,6 +627,15 @@ GVariant *dbus_cb_dunst_Properties_Get(GDBusConnection *connection,
 
         if (STR_EQ(property_name, "paused")) {
                 return g_variant_new_boolean(!status.running);
+        } else if (STR_EQ(property_name, "displayedLength")) {
+                unsigned int displayed = queues_length_displayed();
+                return g_variant_new_uint32(displayed);
+        } else if (STR_EQ(property_name, "historyLength")) {
+                unsigned int history =  queues_length_history();
+                return g_variant_new_uint32(history);
+        } else if (STR_EQ(property_name, "waitingLength")) {
+                unsigned int waiting =  queues_length_waiting();
+                return g_variant_new_uint32(waiting);
         } else {
                 LOG_W("Unknown property!\n");
                 *error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_PROPERTY, "Unknown property");
@@ -616,6 +655,22 @@ gboolean dbus_cb_dunst_Properties_Set(GDBusConnection *connection,
         if (STR_EQ(property_name, "paused")) {
                 dunst_status(S_RUNNING, !g_variant_get_boolean(value));
                 wake_up();
+
+                GVariantBuilder *builder = g_variant_builder_new(G_VARIANT_TYPE_ARRAY);
+                GVariantBuilder *invalidated_builder = g_variant_builder_new(G_VARIANT_TYPE("as"));
+                g_variant_builder_add(builder,
+                                      "{sv}",
+                                      "paused", g_variant_new_boolean(g_variant_get_boolean(value)));
+                g_dbus_connection_emit_signal(connection,
+                                              NULL,
+                                              object_path,
+                                              "org.freedesktop.DBus.Properties",
+                                              "PropertiesChanged",
+                                              g_variant_new("(sa{sv}as)",
+                                                            interface_name,
+                                                            builder,
+                                                            invalidated_builder),
+                                              NULL);
                 return true;
         }
 
@@ -831,4 +886,4 @@ void dbus_teardown(int owner_id)
         g_bus_unown_name(owner_id);
 }
 
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

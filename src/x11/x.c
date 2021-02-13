@@ -19,6 +19,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
+#include <linux/input-event-codes.h>
 
 #include "../dbus.h"
 #include "../draw.h"
@@ -30,6 +31,7 @@
 #include "../queues.h"
 #include "../settings.h"
 #include "../utils.h"
+#include "../input.h"
 
 #include "screen.h"
 
@@ -67,8 +69,10 @@ static int x_shortcut_tear_down_error_handler(void);
 static void setopacity(Window win, unsigned long opacity);
 static void x_handle_click(XEvent ev);
 
-static void x_win_move(struct window_x11 *win, int x, int y, int width, int height)
+static void x_win_move(window winptr, int x, int y, int width, int height)
 {
+        struct window_x11 *win = (struct window_x11*)winptr;
+
         /* move and resize */
         if (x != win->dim.x || y != win->dim.y) {
                 XMoveWindow(xctx.dpy, win->xwin, x, y);
@@ -126,8 +130,9 @@ static void x_win_corners_shape(struct window_x11 *win, const int rad)
                 win->xwin, ShapeNotifyMask);
 }
 
-static void x_win_corners_unshape(struct window_x11 *win)
+static void x_win_corners_unshape(window winptr)
 {
+        struct window_x11 *win = (struct window_x11*)winptr;
         XRectangle rect = {
                 .x = 0,
                 .y = 0,
@@ -153,8 +158,9 @@ static bool x_win_composited(struct window_x11 *win)
         }
 }
 
-void x_display_surface(cairo_surface_t *srf, struct window_x11 *win, const struct dimensions *dim)
+void x_display_surface(cairo_surface_t *srf, window winptr, const struct dimensions *dim)
 {
+        struct window_x11 *win = (struct window_x11*)winptr;
         x_win_move(win, dim->x, dim->y, dim->w, dim->h);
         cairo_xlib_surface_set_size(win->root_surface, dim->w, dim->h);
 
@@ -173,14 +179,14 @@ void x_display_surface(cairo_surface_t *srf, struct window_x11 *win, const struc
 
 }
 
-bool x_win_visible(struct window_x11 *win)
+bool x_win_visible(window winptr)
 {
-        return win->visible;
+        return ((struct window_x11*)winptr)->visible;
 }
 
-cairo_t* x_win_get_context(struct window_x11 *win)
+cairo_t* x_win_get_context(window winptr)
 {
-        return win->c_ctx;
+        return ((struct window_x11*)win)->c_ctx;
 }
 
 static void setopacity(Window win, unsigned long opacity)
@@ -278,7 +284,7 @@ gboolean x_mainloop_fd_dispatch(GSource *source, GSourceFunc callback, gpointer 
         struct window_x11 *win = ((struct x11_source*) source)->win;
 
         bool fullscreen_now;
-        struct screen_info *scr;
+        const struct screen_info *scr;
         XEvent ev;
         unsigned int state;
         while (XPending(xctx.dpy) > 0) {
@@ -399,59 +405,47 @@ bool x_is_idle(void)
         return xctx.screensaver_info->idle > settings.idle_threshold / 1000;
 }
 
+/*
+ * Convert x button code to linux event code
+ * Returns 0 if button is not recognized.
+ */
+static unsigned int x_mouse_button_to_linux_event_code(unsigned int x_button)
+{
+        switch (x_button) {
+                case Button1:
+                        return BTN_LEFT;
+                case Button2:
+                        return BTN_MIDDLE;
+                case Button3:
+                        return BTN_RIGHT;
+                default:
+                        LOG_W("Unsupported mouse button: '%d'", x_button);
+                        return 0;
+        }
+}
+
 /* TODO move to x_mainloop_* */
 /*
  * Handle incoming mouse click events
  */
 static void x_handle_click(XEvent ev)
 {
-        enum mouse_action *acts;
+        unsigned int linux_code = x_mouse_button_to_linux_event_code(ev.xbutton.button);
 
-        switch (ev.xbutton.button) {
-                case Button1:
-                        acts = settings.mouse_left_click;
-                        break;
-                case Button2:
-                        acts = settings.mouse_middle_click;
-                        break;
-                case Button3:
-                        acts = settings.mouse_right_click;
-                        break;
-                default:
-                        LOG_W("Unsupported mouse button: '%d'", ev.xbutton.button);
-                        return;
+        if (linux_code == 0) {
+                return;
         }
 
-        for (int i = 0; acts[i]; i++) {
-                enum mouse_action act = acts[i];
-                if (act == MOUSE_CLOSE_ALL) {
-                        queues_history_push_all();
-                        return;
-                }
-
-                if (act == MOUSE_DO_ACTION || act == MOUSE_CLOSE_CURRENT) {
-                        int y = settings.separator_height;
-                        struct notification *n = NULL;
-                        int first = true;
-                        for (const GList *iter = queues_get_displayed(); iter;
-                             iter = iter->next) {
-                                n = iter->data;
-                                if (ev.xbutton.y > y && ev.xbutton.y < y + n->displayed_height)
-                                        break;
-
-                                y += n->displayed_height + settings.separator_height;
-                                if (first)
-                                        y += settings.frame_width;
-                        }
-
-                        if (n) {
-                                if (act == MOUSE_CLOSE_CURRENT)
-                                        queues_notification_close(n, REASON_USER);
-                                else
-                                        notification_do_action(n);
-                        }
-                }
+        bool button_state;
+        if(ev.type == ButtonRelease) {
+                button_state = false; // button is up
+        } else {
+                // this shouldn't happen, because this function
+                // is only called when it'a a ButtonRelease event
+                button_state = true; // button is down
         }
+
+        input_handle_click(linux_code, button_state, ev.xbutton.x, ev.xbutton.y);
 }
 
 void x_free(void)
@@ -533,10 +527,11 @@ void x_setup(void)
 
         xctx.screensaver_info = XScreenSaverAllocInfo();
 
+        XrmInitialize();
+        XRM_update_db();
+
         init_screens();
         x_shortcut_grab(&settings.history_ks);
-
-        XrmInitialize();
 }
 
 struct geometry x_parse_geometry(const char *geom_str)
@@ -641,7 +636,7 @@ GSource* x_win_reg_source(struct window_x11 *win)
 /*
  * Setup the window
  */
-struct window_x11 *x_win_create(void)
+window x_win_create(void)
 {
         struct window_x11 *win = g_malloc0(sizeof(struct window_x11));
 
@@ -671,7 +666,7 @@ struct window_x11 *x_win_create(void)
             ExposureMask | KeyPressMask | VisibilityChangeMask |
             ButtonReleaseMask | FocusChangeMask| StructureNotifyMask;
 
-        struct screen_info *scr = get_active_screen();
+        const struct screen_info *scr = get_active_screen();
         win->xwin = XCreateWindow(xctx.dpy,
                                  root,
                                  scr->x,
@@ -713,11 +708,13 @@ struct window_x11 *x_win_create(void)
         }
         XSelectInput(xctx.dpy, root, root_event_mask);
 
-        return win;
+        return (window)win;
 }
 
-void x_win_destroy(struct window_x11 *win)
+void x_win_destroy(window winptr)
 {
+        struct window_x11 *win = (struct window_x11*)winptr;
+
         g_source_destroy(win->esrc);
         g_source_unref(win->esrc);
 
@@ -731,8 +728,10 @@ void x_win_destroy(struct window_x11 *win)
 /*
  * Show the window and grab shortcuts.
  */
-void x_win_show(struct window_x11 *win)
+void x_win_show(window winptr)
 {
+        struct window_x11 *win = (struct window_x11*)winptr;
+
         /* window is already mapped or there's nothing to show */
         if (win->visible)
                 return;
@@ -763,8 +762,10 @@ void x_win_show(struct window_x11 *win)
 /*
  * Hide the window and ungrab unused keyboard_shortcuts
  */
-void x_win_hide(struct window_x11 *win)
+void x_win_hide(window winptr)
 {
+        LOG_I("X11: Hiding window");
+        struct window_x11 *win = (struct window_x11*)winptr;
         ASSERT_OR_RET(win->visible,);
 
         x_shortcut_ungrab(&settings.close_ks);
@@ -940,4 +941,4 @@ static void x_shortcut_init(struct keyboard_shortcut *ks)
         g_free(str_begin);
 }
 
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

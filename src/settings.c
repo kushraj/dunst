@@ -13,6 +13,7 @@
 #include "rules.h"
 #include "utils.h"
 #include "x11/x.h"
+#include "output.h"
 
 #include "../config.h"
 
@@ -118,6 +119,12 @@ void load_settings(char *cmdline_config_path)
                 "Force the use of the Xinerama extension"
         );
 
+        settings.force_xwayland = option_get_bool(
+                "global",
+                "force_xwayland", "-force_xwayland", false,
+                "Force the use of the xwayland output"
+        );
+
         settings.font = option_get_string(
                 "global",
                 "font", "-font/-fn", defaults.font,
@@ -208,6 +215,22 @@ void load_settings(char *cmdline_config_path)
                 "idle_threshold", "-idle_threshold", defaults.idle_threshold,
                 "Don't timeout notifications if user is longer idle than threshold"
         );
+
+#ifndef ENABLE_WAYLAND
+        if (is_running_wayland()){
+                /* We are using xwayland now. Setting force_xwayland to make sure
+                 * the idle workaround below is activated */
+                settings.force_xwayland = true;
+        }
+#endif
+
+        if (settings.force_xwayland && is_running_wayland()) {
+                if (settings.idle_threshold > 0)
+                        LOG_W("Using xwayland. Disabling idle.");
+                /* There is no way to detect if the user is idle
+                 * on xwayland, so turn this feature off */
+                settings.idle_threshold = 0;
+        }
 
         settings.monitor = option_get_int(
                 "global",
@@ -355,6 +378,50 @@ void load_settings(char *cmdline_config_path)
                 "Window corner radius"
         );
 
+        settings.progress_bar_height = option_get_int(
+                "global",
+                "progress_bar_height", "-progress_bar_height", defaults.progress_bar_height,
+                "Height of the progress bar"
+        );
+
+        settings.progress_bar_min_width = option_get_int(
+                "global",
+                "progress_bar_min_width", "-progress_bar_min_width", defaults.progress_bar_min_width,
+                "Minimum width of the progress bar"
+        );
+
+        settings.progress_bar_max_width = option_get_int(
+                "global",
+                "progress_bar_max_width", "-progress_bar_max_width", defaults.progress_bar_max_width,
+                "Maximum width of the progress bar"
+        );
+
+        settings.progress_bar_frame_width = option_get_int(
+                "global",
+                "progress_bar_frame_width", "-progress_bar_frame_width", defaults.progress_bar_frame_width,
+                "Frame width of the progress bar"
+        );
+        
+
+        settings.progress_bar = option_get_bool(
+                "global",
+                "progress_bar", "-progress_bar", true,
+                "Show the progress bar"
+        );
+
+        // check sanity of the progress bar options
+        {
+                if (settings.progress_bar_height < (2 * settings.progress_bar_frame_width)){
+                        LOG_E("setting progress_bar_frame_width is bigger than half of progress_bar_height");
+                }
+                if (settings.progress_bar_max_width < (2 * settings.progress_bar_frame_width)){
+                        LOG_E("setting progress_bar_frame_width is bigger than half of progress_bar_max_width");
+                }
+                if (settings.progress_bar_max_width < settings.progress_bar_min_width){
+                        LOG_E("setting progress_bar_max_width is smaller than progress_bar_min_width");
+                }
+        }
+
         {
                 char *c = option_get_string(
                         "global",
@@ -416,7 +483,7 @@ void load_settings(char *cmdline_config_path)
         {
                 char *c = option_get_string(
                         "global",
-                        "icon_position", "-icon_position", "off",
+                        "icon_position", "-icon_position", "left",
                         "Align icons left/right/off"
                 );
 
@@ -438,6 +505,22 @@ void load_settings(char *cmdline_config_path)
                         if (c)
                                 LOG_W("Unknown vertical alignment: '%s'", c);
                         settings.vertical_alignment = defaults.vertical_alignment;
+                }
+                g_free(c);
+
+        }
+
+        {
+                char *c = option_get_string(
+                        "global",
+                        "layer", "-layer", "overlay",
+                        "Select the layer where notifications should be placed"
+                );
+
+                if (!string_parse_layer(c, &settings.layer)) {
+                        if (c)
+                                LOG_W("Unknown layer: '%s'", c);
+                        settings.layer = defaults.layer;
                 }
                 g_free(c);
 
@@ -513,6 +596,13 @@ void load_settings(char *cmdline_config_path)
                         "Width of frame around the window"
                 );
 
+                settings.outer_frame_width = option_get_int(
+                        "global",
+                        "outer_frame_width", "-outer_frame_width",
+                        settings.outer_frame_width ? settings.outer_frame_width : defaults.outer_frame_width,
+                        "Width of outer frame around the window"
+                );
+
                 if (ini_is_set("frame", "color")) {
                         settings.frame_color = option_get_string(
                                 "frame",
@@ -529,6 +619,24 @@ void load_settings(char *cmdline_config_path)
                         "frame_color", "-frame_color",
                         settings.frame_color ? settings.frame_color : defaults.frame_color,
                         "Color of the frame around the window"
+                );
+
+                if (ini_is_set("outer_frame", "color")) {
+                        settings.outer_frame_color = option_get_string(
+                                "outer_frame",
+                                "color", NULL, defaults.outer_frame_color,
+                                "Outer Color of the frame around the window"
+                        );
+                        LOG_M("The frame section is deprecated, color "
+                              "has been renamed to outer_frame_color and moved "
+                              "to the global section.");
+                }
+
+                settings.outer_frame_color = option_get_string(
+                        "global",
+                        "outer_frame_color", "-outer_frame_color",
+                        settings.outer_frame_color ? settings.outer_frame_color : defaults.outer_frame_color,
+                        "Outer Color of the frame around the window"
                 );
 
         }
@@ -584,11 +692,24 @@ void load_settings(char *cmdline_config_path)
                 "Foreground color for notifications with low urgency"
         );
 
+        settings.colors_low.highlight = option_get_string(
+                "urgency_low",
+                "highlight", "-lh", defaults.colors_low.highlight,
+                "Highlight color for notifications with low urgency"
+        );
+
+        settings.colors_low.outer_frame = option_get_string(
+                "urgency_low",
+                "outer_frame_color", "-lfr", settings.outer_frame_color ? settings.outer_frame_color : defaults.colors_low.outer_frame,
+                "Outer Frame color for notifications with low urgency"
+        );
+
         settings.colors_low.frame = option_get_string(
                 "urgency_low",
                 "frame_color", "-lfr", settings.frame_color ? settings.frame_color : defaults.colors_low.frame,
                 "Frame color for notifications with low urgency"
         );
+
 
         settings.timeouts[URG_LOW] = option_get_time(
                 "urgency_low",
@@ -612,6 +733,18 @@ void load_settings(char *cmdline_config_path)
                 "urgency_normal",
                 "foreground", "-nf", defaults.colors_norm.fg,
                 "Foreground color for notifications with normal urgency"
+        );
+
+        settings.colors_norm.highlight = option_get_string(
+                "urgency_normal",
+                "highlight", "-nh", defaults.colors_norm.highlight,
+                "Highlight color for notifications with normal urgency"
+        );
+
+        settings.colors_norm.outer_frame = option_get_string(
+                "urgency_normal",
+                "outer_frame_color", "-nfr", settings.outer_frame_color ? settings.outer_frame_color : defaults.colors_norm.outer_frame,
+                "Outer Frame color for notifications with normal urgency"
         );
 
         settings.colors_norm.frame = option_get_string(
@@ -642,6 +775,18 @@ void load_settings(char *cmdline_config_path)
                 "urgency_critical",
                 "foreground", "-cf", defaults.colors_crit.fg,
                 "Foreground color for notifications with ciritical urgency"
+        );
+
+        settings.colors_crit.highlight = option_get_string(
+                "urgency_critical",
+                "highlight", "-ch", defaults.colors_crit.highlight,
+                "Highlight color for notifications with ciritical urgency"
+        );
+
+        settings.colors_crit.outer_frame = option_get_string(
+                "urgency_critical",
+                "outer_frame_color", "-cfr", settings.outer_frame_color ? settings.outer_frame_color : defaults.colors_crit.outer_frame,
+                "Outer Frame color for notifications with critical urgency"
         );
 
         settings.colors_crit.frame = option_get_string(
@@ -756,7 +901,9 @@ void load_settings(char *cmdline_config_path)
                 r->msg_urgency = ini_get_urgency(cur_section, "msg_urgency", r->msg_urgency);
                 r->fg = ini_get_string(cur_section, "foreground", r->fg);
                 r->bg = ini_get_string(cur_section, "background", r->bg);
+                r->bg = ini_get_string(cur_section, "highlight", r->highlight);
                 r->fc = ini_get_string(cur_section, "frame_color", r->fc);
+                r->ofc = ini_get_string(cur_section, "outer_frame_color", r->ofc);
                 r->format = ini_get_string(cur_section, "format", r->format);
                 r->new_icon = ini_get_string(cur_section, "new_icon", r->new_icon);
                 r->history_ignore = ini_get_bool(cur_section, "history_ignore", r->history_ignore);
@@ -787,4 +934,4 @@ void load_settings(char *cmdline_config_path)
         }
 #endif
 }
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

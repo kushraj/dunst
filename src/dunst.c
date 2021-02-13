@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <X11/Xlib.h>
 
 #include "dbus.h"
 #include "draw.h"
@@ -20,8 +19,7 @@
 #include "queues.h"
 #include "settings.h"
 #include "utils.h"
-#include "x11/screen.h"
-#include "x11/x.h"
+#include "output.h"
 
 GMainLoop *mainloop = NULL;
 
@@ -58,6 +56,7 @@ static gboolean run(void *data);
 
 void wake_up(void)
 {
+        LOG_D("Waking up");
         run(NULL);
 }
 
@@ -67,8 +66,8 @@ static gboolean run(void *data)
 
         LOG_D("RUN");
 
-        dunst_status(S_FULLSCREEN, have_fullscreen_window());
-        dunst_status(S_IDLE, x_is_idle());
+        dunst_status(S_FULLSCREEN, output->have_fullscreen_window());
+        dunst_status(S_IDLE, output->is_idle());
 
         queues_update(status);
 
@@ -77,15 +76,17 @@ static gboolean run(void *data)
         if (active) {
                 // Call draw before showing the window to avoid flickering
                 draw();
-                x_win_show(win);
+                output->win_show(win);
         } else {
-                x_win_hide(win);
+                output->win_hide(win);
         }
 
         if (active) {
                 gint64 now = time_monotonic_now();
                 gint64 sleep = queues_get_next_datachange(now);
                 gint64 timeout_at = now + sleep;
+
+                LOG_D("Sleeping for %li ms", sleep/1000);
 
                 if (sleep >= 0) {
                         if (next_timeout < now || timeout_at < next_timeout) {
@@ -229,4 +230,4 @@ void print_version(void)
         exit(EXIT_SUCCESS);
 }
 
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

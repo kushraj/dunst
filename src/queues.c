@@ -25,6 +25,7 @@
 #include "notification.h"
 #include "settings.h"
 #include "utils.h"
+#include "output.h" // For checking if wayland is active.
 
 /* notification lists */
 static GQueue *waiting   = NULL; /**< all new notifications get into here */
@@ -389,6 +390,19 @@ void queues_update(struct dunst_status status)
                 struct notification *n = iter->data;
                 nextiter = iter->next;
 
+                if (notification_is_locked(n)) {
+                        iter = nextiter;
+                        continue;
+                }
+
+                if (n->marked_for_closure) {
+                        queues_notification_close(n, n->marked_for_closure);
+                        n->marked_for_closure = 0;
+                        iter = nextiter;
+                        continue;
+                }
+
+
                 if (queues_notification_is_finished(n, status)){
                         queues_notification_close(n, REASON_TIME);
                         iter = nextiter;
@@ -550,4 +564,4 @@ void queues_teardown(void)
 }
 
 
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

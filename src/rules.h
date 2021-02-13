@@ -31,7 +31,9 @@ struct rule {
         char *new_icon;
         char *fg;
         char *bg;
+        char *highlight;
         char *fc;
+        char *ofc;
         const char *format;
         const char *script;
         enum behavior_fullscreen fullscreen;
@@ -52,4 +54,4 @@ void rule_apply_all(struct notification *n);
 bool rule_matches_notification(struct rule *r, struct notification *n);
 
 #endif
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

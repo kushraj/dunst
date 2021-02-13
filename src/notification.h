@@ -31,8 +31,10 @@ typedef struct _notification_private NotificationPrivate;
 
 struct notification_colors {
         char *frame;
+        char *outer_frame;
         char *bg;
         char *fg;
+        char *highlight;
 };
 
 struct notification {
@@ -49,10 +51,8 @@ struct notification {
         enum urgency urgency;
 
         GdkPixbuf *icon;         /**< The raw cached icon data used to draw */
-        GdkPixbuf *identity_icon;         /**< The raw cached identity icon data used to draw */
+        GdkPixbuf *app_icon;
         char *icon_id;           /**< plain icon information, which acts as the pixbuf's id, which is saved in .icon
-                                      May be a hash for a raw icon or a name/path for a regular app icon. */
-        char *identity_icon_id;           /**< plain identity icon information, which acts as the pixbuf's id, which is saved in .icon
                                       May be a hash for a raw icon or a name/path for a regular app icon. */
         char *iconname;          /**< plain icon information (may be a path or just a name)
                                       Use this to compare the icon name with rules.*/
@@ -60,6 +60,7 @@ struct notification {
         gint64 start;      /**< begin of current display */
         gint64 timestamp;  /**< arrival time */
         gint64 timeout;    /**< time to display */
+        int locked;     /**< If non-zero the notification is locked **/
 
         GHashTable *actions;
 
@@ -84,12 +85,12 @@ struct notification {
         int displayed_height;
         enum behavior_fullscreen fullscreen; //!< The instruction what to do with it, when desktop enters fullscreen
         bool script_run;        /**< Has the script been executed already? */
+        guint8 marked_for_closure;
 
         /* derived fields */
         char *msg;            /**< formatted message */
         char *text_to_render; /**< formatted message (with age and action indicators) */
         char *urls;           /**< urllist delimited by '\\n' */
-        char *elapsed_time;    /** <elapsed time for notification> */
 };
 
 /**
@@ -142,6 +143,12 @@ int notification_cmp_data(const void *va, const void *vb, void *data);
 
 bool notification_is_duplicate(const struct notification *a, const struct notification *b);
 
+bool notification_is_locked(struct notification *n);
+
+struct notification *notification_lock(struct notification *n);
+
+struct notification *notification_unlock(struct notification *n);
+
 /**Replace the current notification's icon with the icon specified by path.
  *
  * Removes the reference for the previous icon automatically and will also free the
@@ -150,8 +157,6 @@ bool notification_is_duplicate(const struct notification *a, const struct notifi
  * @param n the notification to replace the icon
  * @param new_icon The path of the new icon. May be an absolute path or an icon name.
  */
-void notification_identity_icon_replace_path(struct notification *n, const char *new_icon);
-
 void notification_icon_replace_path(struct notification *n, const char *new_icon);
 
 /**Replace the current notification's icon with the raw icon given in the GVariant.
@@ -218,4 +223,4 @@ const char *notification_urgency_to_string(const enum urgency urgency);
 const char *enum_to_string_fullscreen(enum behavior_fullscreen in);
 
 #endif
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */

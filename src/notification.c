@@ -64,7 +64,9 @@ void notification_print(const struct notification *n)
         printf("\tformatted: '%s'\n", n->msg);
         printf("\tfg: %s\n", n->colors.fg);
         printf("\tbg: %s\n", n->colors.bg);
+        printf("\thighlight: %s\n", n->colors.highlight);
         printf("\tframe: %s\n", n->colors.frame);
+        printf("\touter_frame: %s\n", n->colors.outer_frame);
         printf("\tfullscreen: %s\n", enum_to_string_fullscreen(n->fullscreen));
         printf("\tprogress: %d\n", n->progress);
         printf("\tstack_tag: %s\n", (n->stack_tag ? n->stack_tag : ""));
@@ -97,6 +99,7 @@ void notification_print(const struct notification *n)
                 printf("\n");
         }
         printf("}\n");
+        fflush(stdout);
 }
 
 /* see notification.h */
@@ -197,6 +200,30 @@ bool notification_is_duplicate(const struct notification *a, const struct notifi
             && a->urgency == b->urgency;
 }
 
+bool notification_is_locked(struct notification *n) {
+        assert(n);
+
+        return g_atomic_int_get(&n->locked) != 0;
+}
+
+struct notification* notification_lock(struct notification *n) {
+        assert(n);
+
+        g_atomic_int_set(&n->locked, 1);
+        notification_ref(n);
+
+        return n;
+}
+
+struct notification* notification_unlock(struct notification *n) {
+        assert(n);
+
+        g_atomic_int_set(&n->locked, 0);
+        notification_unref(n);
+
+        return n;
+}
+
 static void notification_private_free(NotificationPrivate *p)
 {
         g_free(p);
@@ -226,6 +253,8 @@ void notification_unref(struct notification *n)
                 return;
 
         g_free(n->appname);
+        g_free(n->app_icon);
+
         g_free(n->summary);
         g_free(n->body);
         g_free(n->iconname);
@@ -236,7 +265,9 @@ void notification_unref(struct notification *n)
         g_free(n->urls);
         g_free(n->colors.fg);
         g_free(n->colors.bg);
+        g_free(n->colors.highlight);
         g_free(n->colors.frame);
+        g_free(n->colors.outer_frame);
         g_free(n->stack_tag);
         g_free(n->desktop_entry);
 
@@ -244,10 +275,9 @@ void notification_unref(struct notification *n)
 
         if (n->icon)
                 g_object_unref(n->icon);
-        if (n->identity_icon)
-                g_object_unref(n->identity_icon);
+        if (n->app_icon)
+                g_object_unref(n->app_icon);
         g_free(n->icon_id);
-        g_free(n->identity_icon_id);
 
         notification_private_free(n->priv);
 
@@ -271,20 +301,6 @@ void notification_icon_replace_path(struct notification *n, const char *new_icon
         g_clear_pointer(&n->icon_id, g_free);
 
         n->icon = icon_get_for_name(new_icon, &n->icon_id);
-}
-
-void notification_identity_icon_replace_path(struct notification *n, const char *new_icon)
-{
-        ASSERT_OR_RET(n,);
-        ASSERT_OR_RET(new_icon,);
-        ASSERT_OR_RET(n->appname != new_icon,);
-
-        g_free(n->appname);
-        n->appname = g_strdup(new_icon);
-        g_clear_object(&n->identity_icon);
-        g_clear_pointer(&n->identity_icon_id, g_free);
-
-        n->identity_icon = icon_get_for_name(new_icon, &n->identity_icon_id);
 }
 
 void notification_icon_replace_data(struct notification *n, GVariant *new_icon)
@@ -388,16 +404,8 @@ void notification_init(struct notification *n)
                 notification_icon_replace_path(n, icon);
                 g_free(icon);
         }
-        /* Identity-icon handling */
-        if(n->appname){
-                char *icon = g_strdup(n->appname);
-                notification_identity_icon_replace_path(n, icon);
-                g_free(icon);
-        }else{
-                char *icon = g_strdup(n->iconname);
-                notification_identity_icon_replace_path(n, icon);
-                g_free(icon);
-        }
+        if (!n->icon && !n->iconname)
+                notification_icon_replace_path(n, settings.icons[n->urgency]);
 
         /* Color hints */
         struct notification_colors defcolors;
@@ -418,8 +426,12 @@ void notification_init(struct notification *n)
                 n->colors.fg = g_strdup(defcolors.fg);
         if (!n->colors.bg)
                 n->colors.bg = g_strdup(defcolors.bg);
+        if (!n->colors.highlight)
+                n->colors.highlight = g_strdup(defcolors.highlight);
         if (!n->colors.frame)
                 n->colors.frame = g_strdup(defcolors.frame);
+        if (!n->colors.outer_frame)
+                n->colors.outer_frame = g_strdup(defcolors.outer_frame);
 
         /* Sanitize misc hints */
         if (n->progress < 0)
@@ -596,15 +608,22 @@ void notification_update_text_to_render(struct notification *n)
                 minutes = t_delta / G_USEC_PER_SEC / 60 % 60;
                 seconds = t_delta / G_USEC_PER_SEC % 60;
 
+                char *new_buf;
                 if (hours > 0) {
-                        n->elapsed_time = g_strdup_printf("%ldh %ldm %lds ago", hours,
+                        new_buf =
+                            g_strdup_printf("%s (%ldh %ldm %lds old)", buf, hours,
                                             minutes, seconds);
                 } else if (minutes > 0) {
-                        n->elapsed_time = g_strdup_printf("%ldm %lds ago",
-                                            minutes, seconds);
-                } else 
-                        n->elapsed_time = g_strdup_printf("%lds ago", seconds);
-                };
+                        new_buf =
+                            g_strdup_printf("%s (%ldm %lds old)", buf, minutes,
+                                            seconds);
+                } else {
+                        new_buf = g_strdup_printf("%s (%lds old)", buf, seconds);
+                }
+
+                g_free(buf);
+                buf = new_buf;
+        }
 
         n->text_to_render = buf;
 }
@@ -637,4 +656,4 @@ void notification_invalidate_actions(struct notification *n) {
         g_hash_table_remove_all(n->actions);
 }
 
-/* vim: set tabstop=8 shiftwidth=8 expandtab textwidth=0: */
+/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */
