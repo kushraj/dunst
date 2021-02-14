@@ -84,6 +84,7 @@ struct settings {
         struct separator_color_data sep_color;
         int frame_width;
         int outer_frame_width;
+        bool inner_border_autocolor;
         char *frame_color;
         char *outer_frame_color;
         int startup_notification;

@@ -534,7 +534,7 @@ static cairo_surface_t *render_background(cairo_surface_t *srf,
                                           int *ret_width)
 {
         // auto border colour based on icon color
-        if(cl->icon){
+        if(cl->icon && settings.inner_border_autocolor){
                 GdkPixbuf *img = cl->n->icon;
                 guint8 *buf = gdk_pixbuf_get_pixels(img);
                 gint w = gdk_pixbuf_get_width(img);

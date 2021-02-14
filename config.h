@@ -60,7 +60,7 @@ struct settings defaults = {
 .outer_frame_width = 0,
 .frame_color = "#888888",
 .outer_frame_color = "#888888",
-
+.inner_border_autocolor = true,
 /* show a notification on startup
  * This is mainly for crash detection since dbus restarts dunst
  * automatically after a crash, so crashes might get unnotices otherwise

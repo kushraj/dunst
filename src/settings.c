@@ -842,6 +842,12 @@ void load_settings(char *cmdline_config_path)
                 "Always run rule-defined scripts, even if the notification is suppressed with format = \"\"."
         );
 
+        settings.inner_border_autocolor = option_get_bool(
+                "global",
+                "inner_border_autocolor", "-inner_border_autocolor", true,
+                "Inner border have same color as Icon used"
+        );
+
         /* push hardcoded default rules into rules list */
         for (int i = 0; i < G_N_ELEMENTS(default_rules); i++) {
                 rules = g_slist_insert(rules, &(default_rules[i]), -1);
