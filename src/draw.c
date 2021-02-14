@@ -608,16 +608,16 @@ static cairo_surface_t *render_background(cairo_surface_t *srf,
 
         cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
 
-        // if (   settings.sep_color.type != SEP_FRAME
-        //     && settings.separator_height > 0
-        //     && !last) {
-        //         struct color sep_color = layout_get_sepcolor(cl, cl_next);
-        //         cairo_set_source_rgba(c, sep_color.r, sep_color.g, sep_color.b, sep_color.a);
+        if (   settings.sep_color.type != SEP_FRAME
+            && settings.separator_height > 0
+            && !last) {
+                struct color sep_color = layout_get_sepcolor(cl, cl_next);
+                cairo_set_source_rgba(c, sep_color.r, sep_color.g, sep_color.b, sep_color.a);
 
-        //         cairo_rectangle(c, settings.frame_width, y + height, width, settings.separator_height);
+                cairo_rectangle(c, settings.frame_width, y + height + settings.frame_width, width, settings.separator_height);
 
-        //         cairo_fill(c);
-        // }
+                cairo_fill(c);
+        }
 
         cairo_destroy(c);
 
